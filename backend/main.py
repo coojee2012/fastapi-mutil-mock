@@ -1,4 +1,7 @@
 # -*-coding:utf-8-*-
+
+import time
+import random
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -25,10 +28,26 @@ if settings.BACKEND_CORS_ORIGINS:
         allow_headers=["*"],
     )
 
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    print('X-Process-Time:{}'.format(process_time))
+    response.headers["X-Process-Time"] = str(process_time)
+    return response
+
+@app.middleware("http")
+async def mock_500(request: Request, call_next):
+    v = random.randint(1,5)
+    if v > 1    :
+        return JSONResponse(content={'error': "mock 500"}, status_code=500)
+    response = await call_next(request)
+    return response
+
 # mount frontend static files
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
-
 
 
 @app.exception_handler(404)

@@ -1,27 +1,31 @@
-from typing import Any
-from datetime import timedelta
-from sqlalchemy.orm import Session
-import re
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from fastapi.encoders import jsonable_encoder
-from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.responses import JSONResponse
+import requests
+import uuid
+import time
+import hashlib
+import json
+import shortuuid
+
+
 
 router = APIRouter()
+RECORDS = 50
 # 获取租户ID下所有的云主机(详细)
 @router.get('/v2.1/{tenant_id}/servers/detail')
 def vhosts_detail(*, tenant_id: str):
     hosts = []
     host_status = "ACTIVE, BUILD,DELETED,ERROR,HARD_REBOOT,MIGRATING,REBOOT,RESIZE,REVERT_RESIZE,SHELVED,SHELVED_OFFLOADED,SHUTOFF,UNKNOWN,VERIFY_RESIZE".split(",")
-    for i in range(10,100):
+    for i in range(10, RECORDS):
         id = f"b3a7db10-38c8-407c-9ee9-8f4d078f3c{i}"
         host = {
             "addresses" : {
             f"68269e6e-4a27-441b-8029-35373ad50b{i}" : [ {
                 "addr" : f"192.168.0.{i}",
                 "version" : 4,
-                "mac":f"a111:b111:c111:dd{i}",
-                "type":"fixed"
+                "OS-EXT-IPS-MAC:mac_addr":f"a111:b111:c111:dd{i}",
+                "OS-EXT-IPS:type":"dhcp"
             }]
             },
             "created" : "2012-09-07T16:56:37Z",
@@ -33,6 +37,7 @@ def vhosts_detail(*, tenant_id: str):
             } ]
             },
             "hostId" : "16d193736a5cfdb60c697ca27ad071d6126fa13baeb670fc9d10645e",
+            "host_status": "OK",
             "id" : id,
             "image" : {
                     "id" : f"17a1890b-0fa4-485e-8505-14e2940179{i}"
@@ -45,13 +50,35 @@ def vhosts_detail(*, tenant_id: str):
             "rel" : "bookmark"
             } ],
             "metadata" : { },
-            "security_groups":[{"name":f"security_groups_test{i}"}],
+            "security_groups":[{"name":f"sec_{i}"}],
             "name" : f"new-server-test{i}",
+            "description": "description",
             "progress" : 100 if i * 5 > 100 else i *5 ,
             "status" : host_status[i % len(host_status)],
             "tenant_id" : "openstack",
             "updated" : "2012-09-07T16:56:37Z",
-            "user_id" : "fake"
+            "user_id" : "fake",
+            "os-extended-volumes:volumes_attached": [{
+                "id": f"b104b8db-170d-441b-897a-3c8ba9c5a2{i}",
+                "delete_on_termination": "false",
+            }],
+            "key_name": "SSH密钥名称",
+            "config_drive": "云服务器是否使用配置磁盘",
+            "OS-DCF:diskConfig":"AUTO",
+            "OS-EXT-AZ:availability_zone":"xxxxxx", #
+            "OS-EXT-SRV-ATTR:host":"云服务器宿主名称",
+            "OS-EXT-SRV-ATTR:hostname":"云服务器hostname",
+            "OS-EXT-SRV-ATTR:hypervisor_hostname":"hypervisor主机名。",
+            "OS-EXT-SRV-ATTR:instance_name":"云服务器实例ID",
+            "OS-EXT-SRV-ATTR:root_device_name":"/dev/sda1", # 云服务器系统盘盘符。
+            "OS-EXT-SRV-ATTR:user_data":"云服务器用户数据信息",
+            "OS-EXT-STS:task_state":"云服务器任务状",
+            "OS-EXT-STS:power_state":"云服务器电源状态",
+            "OS-EXT-STS:vm_state":"云服务器状态",
+            "OS-SRV-USG:launched_at":"2012-09-09T12:56:37Z", # 云服务器启动时间
+            "OS-SRV-USG:terminated_at": "",
+            "OS-EXT-SRV-ATTR:reservation_id": "xxxxxxxxxxxx", # 虚拟机预留ID，批量创建虚拟机时可以用来识别虚拟机。
+            "OS-EXT-SRV-ATTR:launch_index": "1" #批量创建虚拟机时，虚拟机的创建顺序。
         }
         hosts.append(host)
     data = {"servers" : hosts}
@@ -61,7 +88,7 @@ def vhosts_detail(*, tenant_id: str):
 @router.get('/v2.1/{tenant_id}/servers')
 def vhosts_simple(*, tenant_id: str):
     hosts = []
-    for i in range(10,100):
+    for i in range(10,RECORDS):
         id = f"b3a7db10-38c8-407c-9ee9-8f4d078f3c{i}"
         host = {
                 "id" : id,
@@ -81,7 +108,7 @@ def vhosts_simple(*, tenant_id: str):
 @router.get('/v2.1/{tenant_id}/flavors')
 def flavors_simple(*,tenant_id:str):
     flavors = []
-    for i in range(10,100):
+    for i in range(10,RECORDS):
         flavor = {
             "id" : f"{i}",
             "links" : [ {
@@ -100,7 +127,7 @@ def flavors_simple(*,tenant_id:str):
 @router.get('/v2.1/{tenant_id}/flavors/detail')
 def flavors_simple(*,tenant_id:str):
     flavors = []
-    for i in range(10,100):
+    for i in range(10,RECORDS):
         flavor = mock_flavor(str(i))
         flavors.append(flavor)
     data = {  "flavors" : flavors}
@@ -116,7 +143,7 @@ def flavors_simple(*,tenant_id:str,flavors_id:str):
 @router.get('/v2/{tenant_id}/volumes/detail')
 def volumes_detail_list(*,tenant_id:str):
     volumes = []
-    for i in range(10,100):
+    for i in range(10,RECORDS):
         volume = mock_volumes(str(i))
         volumes.append(volume)
     data = {  "volumes" : volumes,"volumes_links":[]}
@@ -126,7 +153,7 @@ def volumes_detail_list(*,tenant_id:str):
 @router.get('/v2/{tenant_id}/snapshots/detail')
 def snapshots_detail_list(*, tenant_id: str):
     snapshots = []
-    for i in range(10,100):
+    for i in range(10,RECORDS):
         snapshot = mock_snapshot(i)
         snapshots.append(snapshot)
     data = {"snapshots" : snapshots}
@@ -136,17 +163,17 @@ def snapshots_detail_list(*, tenant_id: str):
 @router.get('/v2.0/security-groups')
 def security_groups_list():
     groups = []
-    for i in range(33,55):
+    for i in range(10,RECORDS):
         group = mock_security_groups(i)
         groups.append(group)
     data = {"security_groups" : groups}
     return JSONResponse(content=jsonable_encoder(data), status_code=status.HTTP_200_OK)
 
-# GET /v2/images
-@router.get('/v2/images')
+# GET /v2/cloudimages
+@router.get('/v2/cloudimages')
 def iamge_list():
     images = []
-    for i in range(10,99):
+    for i in range(10,RECORDS):
         iamge = mock_image(i)
         images.append(iamge)
     data = {"images" : images}
@@ -169,7 +196,7 @@ def get_token():
 @router.get('/v2.1/{tenant_id}/servers/{server_id}/os-volume_attachments')
 def get_volume_attachments(*, tenant_id:str, server_id:str ):
     attachs = []
-    for i in range(10,100):
+    for i in range(10,RECORDS):
         attach = mock_volume_attachments(i)
         attachs.append(attach)
     data = {  "volumeAttachments" : attachs}
@@ -182,6 +209,92 @@ def get_networks():
         network = mock_networks(i)
         networks.append(network)
     data = {  "networks" : networks}
+    return JSONResponse(content=jsonable_encoder(data), status_code=status.HTTP_200_OK)
+
+@router.get('/{code}/openid')
+def get_openid(*, code:str):
+    GetOpenId = "https://api.weixin.qq.com/sns/jscode2session?appid={appid}&secret={secret}&grant_type=authorization_code&js_code={code}"
+    url = GetOpenId.format(appid="wx62cbda4346701cd6",secret="b6bd0c5a14ac076669c93cf647314950",code=code)
+    res = requests.get(url)
+    print(res)
+    data = '{ "success":false }'
+    print(res.json())
+    if res.status_code == 200:
+        data = res.text
+    return JSONResponse(content=jsonable_encoder(data), status_code=status.HTTP_200_OK)
+
+@router.get('/{code}/openid2')
+def get_openid(*, code:str):
+    GetOpenId ='https://api.weixin.qq.com/sns/oauth2/access_token?appid={appid}&secret={secret}&code={code}&grant_type=authorization_code'
+    url = GetOpenId.format(appid="wx40656143d5db06f9",secret="7aa48615c82e3002929dd517660c60ad",code=code)
+    res = requests.get(url)
+    print(res)
+    data = '{ "success":false }'
+    print(res.json())
+    access_token=''
+    openid=''
+    if res.status_code == 200:
+        resultStr = res.text
+        dict_var2 = json.loads(resultStr)
+        access_token = dict_var2['access_token']
+        openid = dict_var2['openid']
+    userinfoUrl = 'https://api.weixin.qq.com/sns/userinfo?access_token={token}&openid={openid}&lang=zh_CN'
+    url = userinfoUrl.format(token=access_token,openid=openid)
+    data = {
+        "access_token":access_token,
+        "openid": openid
+    }
+    return JSONResponse(content=jsonable_encoder(data), status_code=status.HTTP_200_OK)
+
+
+@router.get('/goods/wx/wx_jsapi_ticket')
+def wx_jsapi_ticket(*, url: str = ""):
+    APPID = "wx40656143d5db06f9"
+    SECRET = "7aa48615c82e3002929dd517660c60ad"
+    AccessTokenUrl = "https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid={APPID}&secret={SECRET}"
+    requestUrl = AccessTokenUrl.format(APPID=APPID,SECRET=SECRET)
+    res = requests.get(requestUrl)
+    # print(res)
+    access_token=""
+    if res.status_code == 200:
+        resultStr = res.text
+        dict_var2 = json.loads(resultStr)
+        access_token = dict_var2['access_token']
+        
+    
+    AccessTokenUrl = "https://api.weixin.qq.com/cgi-bin/ticket/getticket?access_token={ACCESS_TOKEN}&type=jsapi"
+    requestUrl = AccessTokenUrl.format(ACCESS_TOKEN=access_token)
+    res = requests.get(requestUrl)
+    # print(res)
+    ticket = ""
+    errcode = ""
+    errmsg = ""
+    expires_in = ""
+    if res.status_code == 200:
+        resultStr = res.text
+        dict_var2 = json.loads(resultStr)
+        ticket = dict_var2['ticket']
+        errcode = dict_var2['errcode']
+        errmsg = dict_var2['errmsg']
+        expires_in = dict_var2['expires_in']
+    print("ticket:{},errcode:{},errmsg:{},expires_in:{}".format(ticket,errcode,errmsg,expires_in))
+
+    noncestr = shortuuid.uuid() # this.randomUUID();//随机字符串
+    timestamp = time.time() # String.valueOf(System.currentTimeMillis());//时间戳
+
+    str = "jsapi_ticket={}&noncestr={}&timestamp={}&url={}".format(ticket,noncestr,timestamp,url)
+    print(str)
+    # 6、将字符串进行sha1加密
+    # hashlib.sha1(str.encode("utf-8")).hexdigest()
+    signature = hashlib.sha1(str.encode('utf-8')).hexdigest()
+    data = {
+        "signature": signature,
+        "noncestr": noncestr,
+        "timestamp": timestamp,
+        "appId": APPID,
+        "ticket": ticket
+    }
+    print(data)
     return JSONResponse(content=jsonable_encoder(data), status_code=status.HTTP_200_OK)
 
 def mock_image(id):
@@ -226,6 +339,7 @@ def mock_image(id):
             "__productcode":"1111-1111-1111",#市场镜像的产品ID。
             "__image_size":"1231231" ,#镜像文件的大小，单位为字节。必须大于0。
             "__data_origin":"",#"镜像来源。公共镜像为空。" ,
+            "__is_config_init":"true", #是否完成了初始化配置
             "__sequence_num":"3123123",#序列号信息。
             "__support_kvm": "",#如果镜像支持KVM，取值为true，否则无需增加该属性。
             "__support_xen":"",#如果镜像支持XEN，取值为true，否则无需增加该属性。
@@ -324,7 +438,7 @@ def mock_snapshot(id:int):
         "os-extended-snapshot-attributes:project_id" : "bab7d5c60cd041a0a36f7c4b6e1dd978",
         "created_at" : "2015-11-29T02:25:51.000000",
         "updated_at" : "2015-11-29T02:26:28.000000",
-        "size" : 1,
+        "size" : 11,
         "id" : snapshot_id,
         "description" : "volume snapshot"
     } 
@@ -341,34 +455,36 @@ def mock_security_groups(id:int):
         "security_group_rules" : [ {
                 "direction" : "ingress",
                 "ethertype" : "IPv4",
-                "id" : f"e36847a0-e469-41cb-8202-324bd19cd3{id}",
+                "id" : f"e36847a0-e469-41cb-8202-324bd19c{id}",
                 "remote_group_id" : "07d53c6f-a5c2-4ac4-a7c3-e1df90b7a8f5",
                 "security_group_id" : group_id,
+                "parent_group_id": "",
                 "action" : None,
                 "priority" : None,
-                "protocol" : None,
-                "description" : None,
+                "protocol" : "TCP",
+                "description" : f"description{id}",
                 "remote_ip_prefix" : None,
                 "tenant_id" : "e76643bc71784ce0808e962b8a6c6257",
-                "port_range_max" : None,
-                "port_range_min" : None,
+                "port_range_max" : 255,
+                "port_range_min" : id,
                 "created_at" : "2021-06-27T14:46:10",
                 "updated_at" : "2021-06-27T14:46:10",
                 "project_id" : "e76643bc71784ce0808e962b8a6c6257"
                 }, {
                 "direction" : "egress",
                 "ethertype" : "IPv4",
-                "id" : f"22baf104-85ef-4f75-8f70-50458d433c{id}",
+                "id" : f"22baf104-85ef-4f75-8f70-50458d433{id}",
                 "security_group_id" : group_id,
+                "parent_group_id": "",
                 "action" : None,
                 "priority" : None,
-                "protocol" : None,
-                "description" : "",
+                "protocol" : "UDP",
+                "description" : f"description _ {id}",
                 "remote_group_id" : "00e1590a-bf3c-443f-b29f-1633b7cd9303",
                 "remote_ip_prefix" : None,
                 "tenant_id" : "e76643bc71784ce0808e962b8a6c6257",
-                "port_range_max" : None,
-                "port_range_min" : None,
+                "port_range_max" : 3000,
+                "port_range_min" : id + 10,
                 "created_at" : "2021-06-27T14:46:10",
                 "updated_at" : "2021-06-27T14:46:10",
                 "project_id" : "e76643bc71784ce0808e962b8a6c6257"
@@ -387,7 +503,7 @@ def mock_volume_attachments(id: int):
     return attach
 
 def mock_networks(id: int):
-    network_id = f"00ed6888-6aee-40c1-90b9-6d1dbcd24d{i}",
+    network_id = f"00ed6888-6aee-40c1-90b9-6d1dbcd24d{id}",
     return {
     "id" : network_id,
     "name" : f"vpn_external_network_{id}",
@@ -404,7 +520,8 @@ def mock_networks(id: int):
     "router:external" : True,
     "created_at" : "2019-01-23T06:20:13",
     "updated_at" : "2019-01-23T06:20:13",
-    "project_id" : "94e05b0bb4cf4ec99a42af4cb4e5b630"
+    "project_id" : "94e05b0bb4cf4ec99a42af4cb4e5b630",
+    "port_security_enabled": True
   }
     
 def mock():
