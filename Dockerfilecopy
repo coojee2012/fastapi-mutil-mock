@@ -1,0 +1,7 @@
+FROM mock_mutil:1.21
+
+ADD backend .
+# 声明端口
+EXPOSE 8000
+# Run the application:
+CMD ["uvicorn", "--app-dir", "/","main:app","--host", "0.0.0.0", "--port", "8000"]

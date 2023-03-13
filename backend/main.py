@@ -39,8 +39,8 @@ async def add_process_time_header(request: Request, call_next):
 
 @app.middleware("http")
 async def mock_500(request: Request, call_next):
-    v = random.randint(1,5)
-    if v > 1    :
+    v = random.randint(1,10)
+    if v == 1:
         return JSONResponse(content={'error': "mock 500"}, status_code=500)
     response = await call_next(request)
     return response

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Body
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 import requests
@@ -6,8 +6,10 @@ import uuid
 import time
 import hashlib
 import json
-import shortuuid
-
+import random
+# import shortuuid
+from typing import Optional
+from pydantic import BaseModel
 
 
 router = APIRouter()
@@ -55,7 +57,7 @@ def vhosts_detail(*, tenant_id: str):
             "description": "description",
             "progress" : 100 if i * 5 > 100 else i *5 ,
             "status" : host_status[i % len(host_status)],
-            "tenant_id" : "openstack",
+            "tenant_id" : f"b3a7db10-38c8-407c-9ee9-8f4d078f3p{i}",
             "updated" : "2012-09-07T16:56:37Z",
             "user_id" : "fake",
             "os-extended-volumes:volumes_attached": [{
@@ -83,6 +85,21 @@ def vhosts_detail(*, tenant_id: str):
         hosts.append(host)
     data = {"servers" : hosts}
     return JSONResponse(content=jsonable_encoder(data), status_code=status.HTTP_200_OK)
+
+
+@router.post('/v2.1/{tenant_id}/servers/{host_id}/action')
+def ecs_action(tenant_id:str, host_id:str):
+    # payload = Body(..., embed=True)
+    # if payload and payload.get('os-getVNCConsole'):
+    #     pass
+    # elif payload and payload.get('asd'):
+    #     pass
+    data = {"console" : {
+        "type": "novnc",
+        "url": "https://www.baidu.com"
+    }}
+    return JSONResponse(content=jsonable_encoder(data), status_code=status.HTTP_200_OK)
+
 
 # 获取租户ID下所有的云主机(详细)
 @router.get('/v2.1/{tenant_id}/servers')
@@ -122,6 +139,20 @@ def flavors_simple(*,tenant_id:str):
         }
         flavors.append(flavor)
     data = {  "flavors" : flavors}
+    return JSONResponse(content=jsonable_encoder(data), status_code=status.HTTP_200_OK)
+
+@router.get('/v2/{tenant_id}/os-availability-zone')
+def availability_zone_list(*,tenant_id:str):
+    availabilityZoneInfo = []
+    for i in range(1,4):
+        az = {
+			"zoneState": {
+				"available": True
+			},
+			"zoneName": f"az{i}.dc{i}"
+		}
+        availabilityZoneInfo.append(az)
+    data = {  "availabilityZoneInfo" : availabilityZoneInfo}
     return JSONResponse(content=jsonable_encoder(data), status_code=status.HTTP_200_OK)
 
 @router.get('/v2.1/{tenant_id}/flavors/detail')
@@ -187,11 +218,210 @@ def image_detail(*,image_id:str):
 
 @router.post('/v3/auth/tokens')
 def get_token():
-    data = {"message":"ok"}
+    data = { 
+            "token" : { 
+                "methods" : ["password"], 
+                "expires_at" : "2015-11-09T01:42:57.527363Z", 
+                "issued_at" : "2015-11-09T00:42:57.527404Z", 
+                "user" : { 
+                    "domain" : { 
+                        "id" : "ded485def148s4e7d2se41d5se...", 
+                        "name" : "domain A" 
+                    }, 
+                    "id" : "ee4dfb6e5540447cb37419051...", 
+                    "name" : "user A", 
+                    "password_expires_at":"2016-11-06T15:32:17.000000", 
+                }, 
+                "domain" : { 
+                    "name" : "domain A", 
+                    "id" : "dod4ed5e8d4e8d2e8e8d5d2d..." 
+                }, 
+                "catalog": [{ 
+                    "type": "identity", 
+                    "id": "1331e5cff2a74d76b03da12259...", 
+                    "name": "iam", 
+                    "endpoints": [{ 
+                        "url": "www.example.com/v3", 
+                        "region": "*", 
+                        "region_id": "*", 
+                    "interface": "public", 
+                        "id": "089d4a381d574308a703122d3a..." 
+                }] 
+                }],  
+                "roles" : [{ 
+                    "name" : "role1", 
+                    "id" : "roleid1" 
+                    }, { 
+                    "name" : "role2", 
+                    "id" : "roleid2" 
+                    } 
+                ],
+                "project" : {
+                    "id": '666666677777777777'
+                } 
+            } 
+            }
+
     return JSONResponse(
         headers={"X-Subject-Token":"123-123-123-123-123"},
         content=jsonable_encoder(data), 
         status_code=status.HTTP_201_CREATED)
+
+@router.put('/rest/plat/smapp/v1/oauth/token')
+def get_monitor_token():
+    data = { 
+            "accessSession": "x-urhd5eo79jvvc9ddsbhcurinthfvvt442ldjpcnyup44vv1irshi7silph7z5h3ysbk7im9jfzo5o7gafwqntfbuhdqn85tcg7bvru2l6p9ielk63so9ipmnemdffv3t",
+            "roaRand": "2ce2d56bcb4ead59bb11b4b2dd1a9052bdc379a17a408547",
+            "expires": 1800,
+            "additionalInfo": None 
+            }
+
+    return JSONResponse(
+        headers={"X-Subject-Token":"123-123-123-123-123"},
+        content=jsonable_encoder(data), 
+        status_code=status.HTTP_201_CREATED)
+
+@router.get('/v3/auth/projects')
+def get_projects():
+    data = {
+        "projects": [
+            {
+                "id": "b3a7db10-38c8-407c-9ee9-8f4d078f3p11",
+                "name": "SC_PROJECT_11",
+                "domain_id": "b3a7db10-38c8-407c-9ee9-8f4d078f3d1",
+                "description": "test1",
+                "enabled": True,
+                "parent_id":"b3a7db10-38c8-407c-9ee9-8f4d078f3p0",
+                "id_domain": False,
+                "links": {
+                    "self":"http://www.1111.222.com"
+                }
+            },
+            {
+                "id": "b3a7db10-38c8-407c-9ee9-8f4d078f3p12",
+                "name": "SC_PROJECT_12",
+                "domain_id": "b3a7db10-38c8-407c-9ee9-8f4d078f3d2",
+                "description": "test2",
+                "enabled": True,
+                "parent_id":"b3a7db10-38c8-407c-9ee9-8f4d078f3p0",
+                "id_domain": False,
+                "links": {
+                    "self":"http://www.1111.222.com"
+                }
+            },
+            {
+                "id": "b3a7db10-38c8-407c-9ee9-8f4d078f3p13",
+                "name": "SC_PROJECT_13",
+                "domain_id": "b3a7db10-38c8-407c-9ee9-8f4d078f3d3",
+                "description": "test3",
+                "enabled": True,
+                "parent_id":"b3a7db10-38c8-407c-9ee9-8f4d078f3p0",
+                "id_domain": False,
+                "links": {
+                    "self":"http://www.1111.222.com"
+                }
+            },
+            {
+                "id": "b3a7db10-38c8-407c-9ee9-8f4d078f3p14",
+                "name": "SC_PROJECT_14",
+                "domain_id": "b3a7db10-38c8-407c-9ee9-8f4d078f3d4",
+                "description": "test4",
+                "enabled": False,
+                "parent_id":"b3a7db10-38c8-407c-9ee9-8f4d078f3p0",
+                "id_domain": True,
+                "links": {
+                    "self":"http://www.1111.222.com"
+                }
+            },
+            {
+                "id": "666666677777777777",
+                "name": "SC_PROJECT_15",
+                "domain_id": "b3a7db10-38c8-407c-9ee9-8f4d078f3d15",
+                "description": "test5",
+                "enabled": True,
+                "parent_id":"b3a7db10-38c8-407c-9ee9-8f4d078f3p0",
+                "id_domain": False,
+                "links": {
+                    "self":"http://www.1111.222.com"
+                }
+        
+            }
+        ]
+    }
+    return JSONResponse(
+        headers={"X-Subject-Token":"123-123-123-123-123"},
+        content=jsonable_encoder(data), 
+        status_code=status.HTTP_201_CREATED)
+
+@router.post('/v2/{tenant_id}/volumes')
+def create_volumes(*, tenant_id: str):
+    # b104b8db-170d-441b-897a-3c8ba9c5a2{id}
+    payload = Body(..., embed=True)
+    if payload:
+        pass
+    data = {
+        "volume" : {
+            "status" : "creating",
+            "user_id" : "9c158a8fa85b47cfa820e25fab9af47b",
+            "attachments" : [ ],
+            "links" : [ {
+            "href" : "http://172.30.101.201:8776/v2/3dab0aaf682849678a94ec7b5a3af2ce/volumes/70b14513-faad-4646-b7ab-a065cef282b4",
+            "rel" : "self"
+            }, {
+            "href" : "http://172.30.101.201:8776/3dab0aaf682849678a94ec7b5a3af2ce/volumes/70b14513-faad-4646-b7ab-a065cef282b4",
+            "rel" : "bookmark"
+            } ],
+            "availability_zone" : "nova",
+            "bootable" : "false",
+            "encrypted" : False,
+            "created_at" : "2014-12-18T15:57:56.299000",
+            "description" : '',
+            "volume_type" : '',
+            "name" : "test",
+            "replication_status" : "disabled",
+            "consistencygroup_id" : '',
+            "source_volid" : '',
+            "snapshot_id" : '',
+            "shareable" : False,
+            "metadata" : { },
+            "id" : "b104b8db-170d-441b-897a-3c8ba9c5a211",
+            "size" : 10,
+            "multiattach" : False
+        }
+
+    }
+    return JSONResponse(
+        headers={"X-Subject-Token":"123-123-123-123-123"},
+        content=jsonable_encoder(data), 
+        status_code=status.HTTP_202_ACCEPTED)
+# class CreateVMItem(BaseModel):
+#     name: str
+#     desc: Optional[str] = None
+#     price: float
+
+@router.post('/v2.1/{tenant_id}/servers')
+def create_VM(*, tenant_id: str):
+    data = {
+            "server" : {
+                "security_groups" : [ {
+                "name" : "name_xx5_sg"
+                } ],
+                "OS-DCF:diskConfig" : " MANUAL",
+                "id" : "b3a7db10-38c8-407c-9ee9-8f4d078f3c14",
+                "links" : [ {
+                "href" : "http://192.168.82.230:8774/v2/dc4059e8e7994f2498b514ca04cdaf44/servers/567c1557-0eca-422c-bfce-149d6b8f1bb8",
+                "rel" : "self"
+                }, {
+                "href" : "http://192.168.82.230:8774/dc4059e8e7994f2498b514ca04cdaf44/servers/567c1557-0eca-422c-bfce-149d6b8f1bb8",
+                "rel" : "bookmark"
+                } ],
+                "adminPass" : "name_xx1"
+            }
+        }
+    return JSONResponse(
+        headers={"X-Subject-Token":"123-123-123-123-123"},
+        content=jsonable_encoder(data), 
+        status_code=status.HTTP_202_ACCEPTED)
 
 @router.get('/v2.1/{tenant_id}/servers/{server_id}/os-volume_attachments')
 def get_volume_attachments(*, tenant_id:str, server_id:str ):
@@ -247,6 +477,30 @@ def get_openid(*, code:str):
     return JSONResponse(content=jsonable_encoder(data), status_code=status.HTTP_200_OK)
 
 
+class MonitorItem(BaseModel):
+    obj_type_id: str
+    indicator_ids: list
+    range: str
+    begin_time: str
+    end_time: str
+    obj_ids: list
+
+@router.post('/rest/performance/v1/data-svc/history-data/action/query')
+def get_monitor_disk(data: MonitorItem):
+    redata = {
+        "data": {
+            
+        }
+    }
+    for resource in data.obj_ids:
+        redata["data"][resource] = {}
+        for indicator in data.indicator_ids:
+            avg = random.uniform(0,80)
+            redata["data"][resource][indicator] = {"avg":{data.begin_time:"{:.2f}".format(avg)}}
+            #avg = {resource:{indicator:{data.begin_time:"5.72"}}}
+            #redata["data"] = avg
+    return JSONResponse(content=jsonable_encoder(redata), status_code=status.HTTP_200_OK)
+
 @router.get('/goods/wx/wx_jsapi_ticket')
 def wx_jsapi_ticket(*, url: str = ""):
     APPID = "wx40656143d5db06f9"
@@ -279,7 +533,7 @@ def wx_jsapi_ticket(*, url: str = ""):
         expires_in = dict_var2['expires_in']
     print("ticket:{},errcode:{},errmsg:{},expires_in:{}".format(ticket,errcode,errmsg,expires_in))
 
-    noncestr = shortuuid.uuid() # this.randomUUID();//随机字符串
+    noncestr = '111111111111' # this.randomUUID();//随机字符串
     timestamp = time.time() # String.valueOf(System.currentTimeMillis());//时间戳
 
     str = "jsapi_ticket={}&noncestr={}&timestamp={}&url={}".format(ticket,noncestr,timestamp,url)
@@ -408,7 +662,7 @@ def mock_volumes(id:int):
         "volume_image_metadata" : { },
         "os-vol-mig-status-attr:migstat" : None,
         "os-vol-mig-status-attr:name_id" : None,
-        "os-vol-tenant-attr:tenant_id" : "dd14c6ac581f40059e27f5320b60bf2f",
+        "os-vol-tenant-attr:tenant_id" : f"b3a7db10-38c8-407c-9ee9-8f4d078f3p{id}",
         "os-volume-replication:driver_data" : None,
         "os-volume-replication:extended_status" : None,
         "replication_status" : "disabled",
@@ -450,7 +704,7 @@ def mock_security_groups(id:int):
         "id" : group_id,
         "name" : f"sec_{id}",
         "vpc_id" : "472b1047-8f40-4bcd-a80c-89bbd561c884",
-        "project_id" : "fba0be97e6bc4bb1b34bdc98c6bec946",
+        "project_id" : f"b3a7db10-38c8-407c-9ee9-8f4d078f3p{id}",
         "description" : "472b1047-8f40-4bcd-a80c-89bbd561c884",
         "security_group_rules" : [ {
                 "direction" : "ingress",
@@ -464,12 +718,12 @@ def mock_security_groups(id:int):
                 "protocol" : "TCP",
                 "description" : f"description{id}",
                 "remote_ip_prefix" : None,
-                "tenant_id" : "e76643bc71784ce0808e962b8a6c6257",
+                "tenant_id" : f"b3a7db10-38c8-407c-9ee9-8f4d078f3p{id}",
                 "port_range_max" : 255,
                 "port_range_min" : id,
                 "created_at" : "2021-06-27T14:46:10",
                 "updated_at" : "2021-06-27T14:46:10",
-                "project_id" : "e76643bc71784ce0808e962b8a6c6257"
+                "project_id" : f"b3a7db10-38c8-407c-9ee9-8f4d078f3p{id}",
                 }, {
                 "direction" : "egress",
                 "ethertype" : "IPv4",
@@ -482,12 +736,12 @@ def mock_security_groups(id:int):
                 "description" : f"description _ {id}",
                 "remote_group_id" : "00e1590a-bf3c-443f-b29f-1633b7cd9303",
                 "remote_ip_prefix" : None,
-                "tenant_id" : "e76643bc71784ce0808e962b8a6c6257",
+                "tenant_id" : f"b3a7db10-38c8-407c-9ee9-8f4d078f3p{id}",
                 "port_range_max" : 3000,
                 "port_range_min" : id + 10,
                 "created_at" : "2021-06-27T14:46:10",
                 "updated_at" : "2021-06-27T14:46:10",
-                "project_id" : "e76643bc71784ce0808e962b8a6c6257"
+                "project_id" : f"b3a7db10-38c8-407c-9ee9-8f4d078f3p{id}",
                 } ]
     }
     return group
@@ -515,12 +769,12 @@ def mock_networks(id: int):
     "availability_zone_hints" : [ ],
     "availability_zones" : [ "az1.dc1" ],
     "admin_state_up" : True,
-    "tenant_id" : "94e05b0bb4cf4ec99a42af4cb4e5b630",
+    "tenant_id" : f"b3a7db10-38c8-407c-9ee9-8f4d078f3p{id}",
     "provider:network_type" : "local",
     "router:external" : True,
     "created_at" : "2019-01-23T06:20:13",
     "updated_at" : "2019-01-23T06:20:13",
-    "project_id" : "94e05b0bb4cf4ec99a42af4cb4e5b630",
+    "project_id" : f"b3a7db10-38c8-407c-9ee9-8f4d078f3p{id}",
     "port_security_enabled": True
   }
     
